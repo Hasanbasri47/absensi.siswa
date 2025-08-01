@@ -320,7 +320,11 @@
 
     <script>
         // ====== KONFIGURASI GOOGLE APPS SCRIPT ======
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxD2LQ_0CiAmDXM6_rKB5ggOCQbo77PwJ75GEbeQwVrHHuKfjroU6pQGhw-d1Wdx3ogog/exec'; // Ganti dengan URL Apps Script Anda
+        // PENTING: Ganti dengan URL Apps Script Anda yang sudah di-deploy
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxKXsXsFRlBaLee0slIQuaMaoqAZwH2Vwt4pnhswP4HpSrk7QhZiehr5le6hbbKY6zfTA/exec';
+        
+        // Untuk testing tanpa Google Apps Script, set ke null
+        const USE_DEMO_MODE = false; // Set ke false jika sudah ada Apps Script URL
         
         // Data storage
         let dataSiswa = [];
@@ -335,11 +339,14 @@
             setupEventListeners();
             setCurrentMonth();
             
-            // Coba koneksi otomatis jika URL sudah diset
-            if (APPS_SCRIPT_URL !== 'https://script.google.com/macros/s/AKfycbxD2LQ_0CiAmDXM6_rKB5ggOCQbo77PwJ75GEbeQwVrHHuKfjroU6pQGhw-d1Wdx3ogog/exec') {
-                connectToGoogle();
-            } else {
+            // Load data berdasarkan mode
+            if (USE_DEMO_MODE || APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbxKXsXsFRlBaLee0slIQuaMaoqAZwH2Vwt4pnhswP4HpSrk7QhZiehr5le6hbbKY6zfTA/exec') {
+                debugLog('Mode demo aktif - menggunakan data sample');
                 loadSampleData();
+                updateConnectionStatus(false);
+            } else {
+                debugLog('Mencoba koneksi ke Google Apps Script...');
+                connectToGoogle();
             }
         });
 
@@ -550,7 +557,7 @@
             const todayData = dataAbsensi[today];
             
             if (!todayData || Object.keys(todayData).length === 0) {
-                alert('Belum ada data absensi yang diinput!');
+                alert('Belum ada data absensi yang diinput!\n\nSilakan klik tombol Hadir/Terlambat/Tidak Hadir untuk setiap siswa terlebih dahulu.');
                 return;
             }
 
@@ -559,30 +566,50 @@
             const kelas = document.getElementById('kelasSelect').value;
             const siswaKelas = dataSiswa.filter(s => s.kelas === kelas);
             
+            debugLog(`Menyimpan absensi: ${totalAbsen} dari ${siswaKelas.length} siswa kelas ${kelas}`);
+            
             if (totalAbsen < siswaKelas.length) {
                 const confirm = window.confirm(`Hanya ${totalAbsen} dari ${siswaKelas.length} siswa yang sudah diabsen. Lanjutkan menyimpan?`);
                 if (!confirm) return;
             }
 
-            // Simulate saving
+            // Simulate saving dengan loading
+            const btn = document.getElementById('simpanAbsensi');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Menyimpan...';
+            btn.disabled = true;
+
             setTimeout(() => {
-                alert(`Data absensi berhasil disimpan!\n${totalAbsen} siswa telah diabsen.`);
+                alert(`Data absensi berhasil disimpan!\n${totalAbsen} siswa telah diabsen untuk kelas ${kelas}.`);
                 updateSinkronStatus('saved');
+                debugLog(`Data absensi tersimpan: ${totalAbsen} siswa`);
                 
-                // Auto sync jika terhubung ke Google
-                if (isConnectedToGoogle) {
+                // Reset button
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+                
+                // Auto sync jika terhubung ke Google (dalam mode nyata)
+                if (isConnectedToGoogle && !USE_DEMO_MODE) {
                     setTimeout(() => {
                         sinkronKeGoogle();
                     }, 1000);
                 }
-            }, 500);
+            }, 1000);
         }
 
         async function connectToGoogle() {
             const btn = document.getElementById('connectBtn');
             const originalHTML = btn.innerHTML;
+            
+            // Jika dalam mode demo, tampilkan pesan
+            if (USE_DEMO_MODE) {
+                alert('Mode Demo Aktif!\n\nUntuk menggunakan Google Sheets:\n1. Set USE_DEMO_MODE = false di line 328\n2. Ganti APPS_SCRIPT_URL dengan URL Apps Script Anda\n3. Deploy Apps Script sebagai Web App dengan akses "Anyone"\n\nSaat ini menggunakan data sample untuk demo.');
+                return;
+            }
+            
             btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Menghubungkan...';
             btn.disabled = true;
+            debugLog('Memulai koneksi ke Google Apps Script...');
             
             try {
                 // Test koneksi ke Google Apps Script
@@ -601,6 +628,7 @@
                     isConnectedToGoogle = true;
                     localStorage.setItem('googleConnected', 'true');
                     updateConnectionStatus(true);
+                    debugLog('Berhasil terhubung ke Google Sheets!');
                     
                     // Load data dari Google Sheets
                     await loadDataFromGoogle();
@@ -611,6 +639,7 @@
                 }
             } catch (error) {
                 console.error('Error connecting to Google:', error);
+                debugLog(`Error koneksi: ${error.message}`);
                 
                 // Reset button
                 btn.innerHTML = originalHTML;
@@ -651,7 +680,7 @@
         async function loadDataFromGoogle() {
             try {
                 // Load data siswa
-                const response = await fetch(`${https://script.google.com/macros/s/AKfycbxD2LQ_0CiAmDXM6_rKB5ggOCQbo77PwJ75GEbeQwVrHHuKfjroU6pQGhw-d1Wdx3ogog/exec}?action=get_siswa`, {
+                const response = await fetch(`${APPS_SCRIPT_URL}?action=get_siswa`, {
                     method: 'GET',
                     mode: 'cors'
                 });
@@ -683,11 +712,6 @@
         }
 
         async function sinkronKeGoogle() {
-            if (!isConnectedToGoogle) {
-                alert('Silakan hubungkan ke Google Sheets terlebih dahulu!');
-                return;
-            }
-
             const today = new Date().toISOString().split('T')[0];
             const todayData = dataAbsensi[today];
             
@@ -700,6 +724,22 @@
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Menyinkronkan...';
             btn.disabled = true;
+            
+            // Jika dalam mode demo
+            if (USE_DEMO_MODE || !isConnectedToGoogle) {
+                debugLog('Mode demo - simulasi sinkronisasi...');
+                
+                setTimeout(() => {
+                    const count = Object.keys(todayData).length;
+                    updateSinkronStatus('synced');
+                    debugLog(`Simulasi: ${count} data absensi "disinkronkan"`);
+                    alert(`Mode Demo: Simulasi berhasil menyinkronkan ${count} data absensi!\n\nUntuk sinkronisasi nyata ke Google Sheets, hubungkan ke Google terlebih dahulu.`);
+                    
+                    btn.innerHTML = originalHTML;
+                    btn.disabled = false;
+                }, 1500);
+                return;
+            }
 
             try {
                 // Format data absensi sesuai dengan yang diharapkan Apps Script
@@ -712,9 +752,9 @@
                     };
                 });
 
-                console.log('Mengirim data absensi:', formattedData);
+                debugLog(`Mengirim ${Object.keys(formattedData).length} data absensi ke Google...`);
 
-                const response = await fetch(https://script.google.com/macros/s/AKfycbxD2LQ_0CiAmDXM6_rKB5ggOCQbo77PwJ75GEbeQwVrHHuKfjroU6pQGhw-d1Wdx3ogog/exec, {
+                const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
                     mode: 'cors',
                     headers: {
@@ -734,12 +774,14 @@
                 
                 if (result.success) {
                     updateSinkronStatus('synced');
+                    debugLog(`Berhasil sinkronisasi ${result.count} data ke Google Sheets`);
                     alert(`Berhasil menyinkronkan ${result.count} data absensi ke Google Sheets!`);
                 } else {
                     throw new Error(result.message || 'Gagal menyinkronkan data');
                 }
             } catch (error) {
                 console.error('Error syncing to Google:', error);
+                debugLog(`Error sinkronisasi: ${error.message}`);
                 alert('Gagal menyinkronkan data: ' + error.message);
             } finally {
                 btn.innerHTML = originalHTML;
@@ -823,7 +865,7 @@
             
             if (isConnectedToGoogle) {
                 try {
-                    const response = await fetch(https://script.google.com/macros/s/AKfycbxD2LQ_0CiAmDXM6_rKB5ggOCQbo77PwJ75GEbeQwVrHHuKfjroU6pQGhw-d1Wdx3ogog/exec, {
+                    const response = await fetch(APPS_SCRIPT_URL, {
                         method: 'POST',
                         mode: 'cors',
                         headers: {
@@ -891,7 +933,7 @@
 
             if (isConnectedToGoogle) {
                 try {
-                    const response = await fetch(https://script.google.com/macros/s/AKfycbxD2LQ_0CiAmDXM6_rKB5ggOCQbo77PwJ75GEbeQwVrHHuKfjroU6pQGhw-d1Wdx3ogog/exec, {
+                    const response = await fetch(APPS_SCRIPT_URL, {
                         method: 'POST',
                         mode: 'cors',
                         headers: {
@@ -1092,5 +1134,5 @@
             window.URL.revokeObjectURL(url);
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9686f898c4c3df97',t:'MTc1NDA2ODQ1OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'968709cfe460df93',t:'MTc1NDA2OTE2My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
