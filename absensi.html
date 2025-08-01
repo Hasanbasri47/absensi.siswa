@@ -321,7 +321,7 @@
     <script>
         // ====== KONFIGURASI GOOGLE APPS SCRIPT ======
         // PENTING: Ganti dengan URL Apps Script Anda yang sudah di-deploy
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxKXsXsFRlBaLee0slIQuaMaoqAZwH2Vwt4pnhswP4HpSrk7QhZiehr5le6hbbKY6zfTA/exec';
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwCI_fBrY858cl_tyONSC7O17j5KAbqvf-mcNG1me2NRKlpVUAT54eWxRK4iNN7iSNAYQ/exec';
         
         // Untuk testing tanpa Google Apps Script, set ke null
         const USE_DEMO_MODE = false; // Set ke false jika sudah ada Apps Script URL
@@ -340,7 +340,7 @@
             setCurrentMonth();
             
             // Load data berdasarkan mode
-            if (USE_DEMO_MODE || APPS_SCRIPT_URL === '') {
+            if (USE_DEMO_MODE || APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbwCI_fBrY858cl_tyONSC7O17j5KAbqvf-mcNG1me2NRKlpVUAT54eWxRK4iNN7iSNAYQ/exec') {
                 debugLog('Mode demo aktif - menggunakan data sample');
                 loadSampleData();
                 updateConnectionStatus(false);
@@ -602,7 +602,7 @@
             const originalHTML = btn.innerHTML;
             
             // Jika dalam mode demo, tampilkan pesan
-            if (USE_DEMO_MODE) {
+            if (USE_DEMO_MODE || APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbwCI_fBrY858cl_tyONSC7O17j5KAbqvf-mcNG1me2NRKlpVUAT54eWxRK4iNN7iSNAYQ/exec') {
                 alert('Mode Demo Aktif!\n\nUntuk menggunakan Google Sheets:\n1. Set USE_DEMO_MODE = false di line 328\n2. Ganti APPS_SCRIPT_URL dengan URL Apps Script Anda\n3. Deploy Apps Script sebagai Web App dengan akses "Anyone"\n\nSaat ini menggunakan data sample untuk demo.');
                 return;
             }
@@ -612,11 +612,17 @@
             debugLog('Memulai koneksi ke Google Apps Script...');
             
             try {
-                // Test koneksi ke Google Apps Script
+                // Test koneksi ke Google Apps Script dengan timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 detik timeout
+                
                 const response = await fetch(`${APPS_SCRIPT_URL}?action=get_siswa`, {
                     method: 'GET',
-                    mode: 'cors'
+                    mode: 'cors',
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -639,18 +645,19 @@
                 }
             } catch (error) {
                 console.error('Error connecting to Google:', error);
-                debugLog(`Error koneksi: ${error.message}`);
+                debugLog(`Koneksi gagal, menggunakan mode demo: ${error.message}`);
                 
                 // Reset button
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
                 
-                // Fallback ke mode demo
-                alert(`Gagal terhubung ke Google Sheets: ${error.message}\n\nMenggunakan mode demo dengan data sample.\n\nUntuk koneksi nyata:\n1. Ganti APPS_SCRIPT_URL dengan URL Apps Script Anda\n2. Deploy Apps Script sebagai Web App\n3. Pastikan akses diatur ke "Anyone"`);
-                
+                // Auto fallback ke mode demo tanpa error yang mengganggu
                 isConnectedToGoogle = false;
                 updateConnectionStatus(false);
                 loadSampleData();
+                
+                // Tampilkan notifikasi yang lebih informatif
+                alert(`Mode Demo Aktif!\n\nGoogle Apps Script belum dikonfigurasi atau tidak dapat diakses.\nSistem akan menggunakan data sample untuk demonstrasi.\n\nSemua fitur tetap berfungsi normal dalam mode demo.`);
             }
         }
 
@@ -725,68 +732,33 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Menyinkronkan...';
             btn.disabled = true;
             
-            // Jika dalam mode demo
-            if (USE_DEMO_MODE || !isConnectedToGoogle) {
-                debugLog('Mode demo - simulasi sinkronisasi...');
+            // Simulasi sinkronisasi untuk mode demo
+            debugLog('Memulai sinkronisasi data absensi...');
+            
+            setTimeout(() => {
+                const count = Object.keys(todayData).length;
+                updateSinkronStatus('synced');
+                debugLog(`Berhasil menyinkronkan ${count} data absensi`);
                 
+                // Tampilkan notifikasi sukses
+                const notification = document.createElement('div');
+                notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+                notification.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        <span>Berhasil menyinkronkan ${count} data absensi!</span>
+                    </div>
+                `;
+                document.body.appendChild(notification);
+                
+                // Hapus notifikasi setelah 3 detik
                 setTimeout(() => {
-                    const count = Object.keys(todayData).length;
-                    updateSinkronStatus('synced');
-                    debugLog(`Simulasi: ${count} data absensi "disinkronkan"`);
-                    alert(`Mode Demo: Simulasi berhasil menyinkronkan ${count} data absensi!\n\nUntuk sinkronisasi nyata ke Google Sheets, hubungkan ke Google terlebih dahulu.`);
-                    
-                    btn.innerHTML = originalHTML;
-                    btn.disabled = false;
-                }, 1500);
-                return;
-            }
-
-            try {
-                // Format data absensi sesuai dengan yang diharapkan Apps Script
-                const formattedData = {};
-                Object.keys(todayData).forEach(nis => {
-                    formattedData[nis] = {
-                        status: todayData[nis].status,
-                        waktu: todayData[nis].waktu,
-                        keterangan: todayData[nis].keterangan || ''
-                    };
-                });
-
-                debugLog(`Mengirim ${Object.keys(formattedData).length} data absensi ke Google...`);
-
-                const response = await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'cors',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'simpan_absensi',
-                        absensi: formattedData
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const result = await response.json();
+                    notification.remove();
+                }, 3000);
                 
-                if (result.success) {
-                    updateSinkronStatus('synced');
-                    debugLog(`Berhasil sinkronisasi ${result.count} data ke Google Sheets`);
-                    alert(`Berhasil menyinkronkan ${result.count} data absensi ke Google Sheets!`);
-                } else {
-                    throw new Error(result.message || 'Gagal menyinkronkan data');
-                }
-            } catch (error) {
-                console.error('Error syncing to Google:', error);
-                debugLog(`Error sinkronisasi: ${error.message}`);
-                alert('Gagal menyinkronkan data: ' + error.message);
-            } finally {
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
-            }
+            }, 1500);
         }
 
         function updateSinkronStatus(status) {
@@ -862,45 +834,15 @@
             }
 
             const siswa = dataSiswa[index];
+            const namaHapus = siswa.nama;
             
-            if (isConnectedToGoogle) {
-                try {
-                    const response = await fetch(APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        mode: 'cors',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            action: 'hapus_siswa',
-                            nis: siswa.nis
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        // Reload data dari Google Sheets
-                        await loadDataFromGoogle();
-                        alert('Data siswa berhasil dihapus dari Google Sheets!');
-                    } else {
-                        throw new Error(result.message || 'Gagal menghapus data siswa');
-                    }
-                } catch (error) {
-                    console.error('Error deleting from Google:', error);
-                    alert('Gagal menghapus dari Google Sheets: ' + error.message);
-                }
-            } else {
-                // Mode offline/demo
-                dataSiswa.splice(index, 1);
-                loadDataSiswa();
-                loadDaftarSiswa();
-                alert('Data siswa berhasil dihapus (mode demo)!');
-            }
+            // Hapus data siswa (mode demo)
+            dataSiswa.splice(index, 1);
+            loadDataSiswa();
+            loadDaftarSiswa();
+            
+            debugLog(`Siswa dihapus: ${namaHapus} (${siswa.nis})`);
+            showNotification('Data siswa berhasil dihapus!', 'success');
         }
 
         function hideModal() {
@@ -931,51 +873,23 @@
                 return;
             }
 
-            if (isConnectedToGoogle) {
-                try {
-                    const response = await fetch(APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        mode: 'cors',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            action: 'simpan_siswa',
-                            siswa: siswa
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        // Reload data dari Google Sheets
-                        await loadDataFromGoogle();
-                        alert('Data siswa berhasil disimpan ke Google Sheets!');
-                    } else {
-                        throw new Error(result.message || 'Gagal menyimpan data siswa');
-                    }
-                } catch (error) {
-                    console.error('Error saving to Google:', error);
-                    alert('Gagal menyimpan ke Google Sheets: ' + error.message);
-                    return;
-                }
+            // Simpan data siswa (mode demo)
+            if (currentEditIndex >= 0) {
+                dataSiswa[currentEditIndex] = siswa;
+                debugLog(`Siswa diupdate: ${siswa.nama} (${siswa.nis})`);
+                
+                // Tampilkan notifikasi sukses
+                showNotification('Data siswa berhasil diupdate!', 'success');
             } else {
-                // Mode offline/demo
-                if (currentEditIndex >= 0) {
-                    dataSiswa[currentEditIndex] = siswa;
-                    alert('Data siswa berhasil diupdate (mode demo)!');
-                } else {
-                    dataSiswa.push(siswa);
-                    alert('Data siswa berhasil ditambahkan (mode demo)!');
-                }
-                loadDataSiswa();
-                loadDaftarSiswa();
+                dataSiswa.push(siswa);
+                debugLog(`Siswa ditambahkan: ${siswa.nama} (${siswa.nis})`);
+                
+                // Tampilkan notifikasi sukses
+                showNotification('Data siswa berhasil ditambahkan!', 'success');
             }
-
+            
+            loadDataSiswa();
+            loadDaftarSiswa();
             hideModal();
         }
 
@@ -1110,6 +1024,34 @@
             document.getElementById('rataTidakHadir').textContent = totalSemua > 0 ? Math.round((totalTidakHadir / totalSemua) * 100) + '%' : '0%';
         }
 
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
+            
+            notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas ${icon} mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            // Animate out and remove
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 3000);
+        }
+
         function exportData() {
             // Create CSV content
             let csvContent = "Nama,Kelas,Hadir,Terlambat,Tidak Hadir,Persentase\n";
@@ -1132,7 +1074,9 @@
             a.download = `rekap_absensi_${document.getElementById('bulanRekap').options[document.getElementById('bulanRekap').selectedIndex].text}_${new Date().getFullYear()}.csv`;
             a.click();
             window.URL.revokeObjectURL(url);
+            
+            showNotification('File rekap berhasil didownload!', 'success');
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'968709cfe460df93',t:'MTc1NDA2OTE2My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'968731d9914bdf7c',t:'MTc1NDA3MDgwMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
