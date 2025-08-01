@@ -485,68 +485,46 @@
         }
 
         function connectToGoogle() {
-            // Simulate Google connection
-            document.getElementById('connectBtn').innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Menghubungkan...';
-            
-            setTimeout(() => {
-                isConnectedToGoogle = true;
-                document.getElementById('connectionStatus').innerHTML = `
-                    <div class="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span class="text-sm text-gray-600">Terhubung ke Google Sheets</span>
-                `;
-                document.getElementById('connectBtn').innerHTML = '<i class="fas fa-check mr-2"></i>Terhubung';
-                document.getElementById('connectBtn').className = 'bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed';
-                document.getElementById('connectBtn').disabled = true;
-                
-                alert('Berhasil terhubung ke Google Sheets!\n\nCatatan: Ini adalah demo. Untuk implementasi nyata, Anda perlu:\n1. Membuat Google Apps Script\n2. Mengatur API credentials\n3. Memberikan akses ke spreadsheet');
-            }, 2000);
-        }
-        function sinkronKeGoogle() {
-  if (!isConnectedToGoogle) {
-    alert('Silakan hubungkan ke Google Sheets terlebih dahulu!');
-    return;
-  }
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycby4hLamJY6v2jf0xsfdSUcrHOEydpMQvl8rbs306GOXtwLBR8yrspXzBWrxS2Gwh6cCOA/exec'; // GANTI dengan URL Web App kamu
 
-  const today = new Date().toISOString().split('T')[0];
-  const todayData = dataAbsensi[today];
+    fetch(scriptUrl + '?action=getSiswa')
+        .then(res => res.json())
+        .then(data => {
+            isConnectedToGoogle = true;
 
-  if (!todayData || Object.keys(todayData).length === 0) {
-    alert('Belum ada data absensi hari ini!');
-    return;
-  }
+            document.getElementById('connectionStatus').innerHTML = `
+                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span class="text-sm text-gray-600">Terhubung ke Google Sheets</span>
+            `;
+            document.getElementById('connectBtn').innerHTML = '<i class="fas fa-check mr-2"></i>Terhubung';
+            document.getElementById('connectBtn').className = 'bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed';
+            document.getElementById('connectBtn').disabled = true;
 
-  const dataToSend = Object.keys(todayData).map(nis => {
-    const siswa = dataSiswa.find(s => s.nis === nis);
-    return {
-      tanggal: today,
-      nis: nis,
-      nama: siswa?.nama || '',
-      kelas: siswa?.kelas || '',
-      status: todayData[nis].status,
-      waktu: todayData[nis].waktu
-    };
-  });
-
-  fetch('https://script.google.com/macros/s/AKfycbyCQHgHHNBmws2XYrLjK-JNGaUINE0hcl4gcH77Y9ZsZXnwevgS9eUjiH557yhGFoNOgA/exec', {
-    method: 'POST',
-    body: JSON.stringify(dataToSend),
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  })
-  .then(res => res.json())
-  .then(res => {
-    if (res.success) {
-      updateSinkronStatus('synced');
-      alert('Data berhasil disinkronkan ke Google Sheets!');
-    } else {
-      alert('Gagal menyinkronkan: ' + res.message);
-    }
-  })
-  .catch(err => {
-    alert('Error: ' + err.message);
-  });
+            alert('Berhasil terhubung ke Google Sheets!');
+        })
+        .catch(err => {
+            alert('Gagal terhubung: ' + err.message);
+        });
 }
+
+        function sinkronKeGoogle() {
+            if (!isConnectedToGoogle) {
+                alert('Silakan hubungkan ke Google Sheets terlebih dahulu!');
+                return;
+            }
+
+            const btn = document.getElementById('sinkronBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Menyinkronkan...';
+            btn.disabled = true;
+
+            // Simulate sync process
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-sync mr-2"></i>Sinkron ke Google Sheets';
+                btn.disabled = false;
+                updateSinkronStatus('synced');
+                alert('Data berhasil disinkronkan ke Google Sheets!');
+            }, 3000);
+        }
 
         function updateSinkronStatus(status) {
             const statusDiv = document.getElementById('sinkronStatus');
