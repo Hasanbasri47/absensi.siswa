@@ -340,7 +340,7 @@
             setCurrentMonth();
             
             // Load data berdasarkan mode
-            if (USE_DEMO_MODE || APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbxKXsXsFRlBaLee0slIQuaMaoqAZwH2Vwt4pnhswP4HpSrk7QhZiehr5le6hbbKY6zfTA/exec') {
+            if (USE_DEMO_MODE || APPS_SCRIPT_URL === '') {
                 debugLog('Mode demo aktif - menggunakan data sample');
                 loadSampleData();
                 updateConnectionStatus(false);
