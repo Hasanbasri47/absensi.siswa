@@ -340,7 +340,7 @@
             setCurrentMonth();
             
             // Load data berdasarkan mode
-            if (USE_DEMO_MODE || APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbwCI_fBrY858cl_tyONSC7O17j5KAbqvf-mcNG1me2NRKlpVUAT54eWxRK4iNN7iSNAYQ/exec') {
+            if (USE_DEMO_MODE || APPS_SCRIPT_URL === '') {
                 debugLog('Mode demo aktif - menggunakan data sample');
                 loadSampleData();
                 updateConnectionStatus(false);
@@ -602,7 +602,7 @@
             const originalHTML = btn.innerHTML;
             
             // Jika dalam mode demo, tampilkan pesan
-            if (USE_DEMO_MODE || APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbwCI_fBrY858cl_tyONSC7O17j5KAbqvf-mcNG1me2NRKlpVUAT54eWxRK4iNN7iSNAYQ/exec') {
+            if (USE_DEMO_MODE || APPS_SCRIPT_URL === '') {
                 alert('Mode Demo Aktif!\n\nUntuk menggunakan Google Sheets:\n1. Set USE_DEMO_MODE = false di line 328\n2. Ganti APPS_SCRIPT_URL dengan URL Apps Script Anda\n3. Deploy Apps Script sebagai Web App dengan akses "Anyone"\n\nSaat ini menggunakan data sample untuk demo.');
                 return;
             }
